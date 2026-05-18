@@ -1,94 +1,76 @@
-using OOP_laba7.controllers;
+using OOP_laba7.presenters;
 using OOP_laba7.utils;
 
 namespace OOP_laba7;
 
 /// <summary>
-/// MVC: View
-/// Отображает данные и реагирует на пользовательский ввод.
-/// НЕ содержит бизнес-логики. НЕ обращается к Model напрямую.
-/// Всё делегирует Controller.
+/// MVP: View (реализация IAirportView).
+///
+/// Главное отличие от MVC Form2:
+/// — Form2 реализует интерфейс IAirportView.
+/// — Кнопки только испускают события — никакой логики внутри обработчиков.
+/// — Form2 не знает ни о Model, ни об AirportPresenter — только о контракте IAirportView.
+/// — ShowAirports, AppendLog, ShowError вызывает Presenter, не Form2 сама.
 /// </summary>
-public partial class MainForm : Form
+public partial class MainForm : Form, IAirportView
 {
-    // View знает только о Controller, не о Model
-    private readonly AirportController _controller;
-
+    // ── IAirportView: события — View только сигнализирует ─────────────────────
+    public event EventHandler? OnAddRandom;
+    public event EventHandler? OnAddPremium;
+    public event EventHandler? OnDelete;
+ 
+    // ── IAirportView: свойство — Presenter читает сам ─────────────────────────
+    public int SelectedIndex => (int)numericUpDown_Obj.Value;
+ 
     public MainForm()
     {
         InitializeComponent();
-
-        // View создаёт Controller
-        _controller = new AirportController();
-
-        // View подписывается на события Controller
-        _controller.DataChanged  += RefreshGrid;     // обновить таблицу
-        _controller.ActionLogged += AppendActionLog; // дописать лог
+ 
+        // View создаёт Presenter и передаёт себя через интерфейс.
+        // Presenter сам подпишется на события и возьмёт управление.
+        _ = new AirportPresenter(this);
     }
-
-    // ──────────────────────────────────────────────
-    //  Обработчики кнопок — View → Controller
-    // ──────────────────────────────────────────────
-
+ 
+    // ── Обработчики кнопок: только raise event, никакой логики ───────────────
+ 
     private void button_CreateObj_Click(object sender, EventArgs e)
-    {
-        try   { _controller.AddRandomAirport(); }
-        catch (Exception ex) { ShowError(ex.Message); }
-    }
-
+        => OnAddRandom?.Invoke(this, EventArgs.Empty);
+ 
     private void button_CreatePremiumObj_Click(object sender, EventArgs e)
-    {
-        try   { _controller.AddRandomPremiumAirport(); }
-        catch (Exception ex) { ShowError(ex.Message); }
-    }
-
+        => OnAddPremium?.Invoke(this, EventArgs.Empty);
+ 
     private void button_DeleteObj_Click(object sender, EventArgs e)
-    {
-        try   { _controller.DeleteAirport((int)numericUpDown_Obj.Value); }
-        catch (IndexOutOfRangeException) { ShowError("Нет элемента с таким индексом."); }
-        catch (Exception ex)            { ShowError(ex.Message); }
-    }
-
+        => OnDelete?.Invoke(this, EventArgs.Empty);
+ 
     private void button_Back_Click(object sender, EventArgs e) => this.Close();
     private void button_Exit_Click(object sender, EventArgs e) => Application.Exit();
-
-    // ──────────────────────────────────────────────
-    //  Методы отображения — Controller → View
-    // ──────────────────────────────────────────────
-
-    /// <summary>
-    /// View получает от Controller готовые ViewModel-ы и просто рисует их.
-    /// Никакой логики — только отображение.
-    /// </summary>
-    private void RefreshGrid()
+ 
+    // ── IAirportView: методы — Presenter вызывает, View только рисует ─────────
+ 
+    public void ShowAirports(IReadOnlyList<AirportRowViewModel> rows)
     {
         dataGridView1.Rows.Clear();
-
-        foreach (var vm in _controller.GetAirports())
+        foreach (var r in rows)
         {
             dataGridView1.Rows.Add(
-                vm.Index,
-                vm.Name,
-                vm.Location,
-                vm.FlightsPerDay,
-                vm.TicketsSold,
-                vm.Balance,
-                vm.Rating,
-                vm.EmployeesCount
+                r.Index,
+                r.Name,
+                r.Location,
+                r.FlightsPerDay,
+                r.TicketsSold,
+                r.Balance,
+                r.Rating,
+                r.EmployeesCount
             );
         }
     }
-
-    private void AppendActionLog(string message)
-    {
-        textBox_Actions.Text += message;
-    }
-
-    private static void ShowError(string message)
-    {
-        NativeMessageBox.MessageBox(
+ 
+    public void AppendLog(string message)
+        => textBox_Actions.Text += message;
+ 
+    public void ShowError(string message)
+        => NativeMessageBox.MessageBox(
             0, message, "Ошибка",
             NativeMessageBox.MB_OK | NativeMessageBox.MB_ICONERROR
         );
-    }
 }
